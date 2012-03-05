@@ -1,0 +1,130 @@
+/***************************************************************************
+ *   Copyright (C) 2006 by Hámor Tamás   *
+ *   hamuguy@gmail.com   *
+ *                                                                         *
+ *   Permission is hereby granted, free of charge, to any person obtaining *
+ *   a copy of this software and associated documentation files (the       *
+ *   "Software"), to deal in the Software without restriction, including   *
+ *   without limitation the rights to use, copy, modify, merge, publish,   *
+ *   distribute, sublicense, and/or sell copies of the Software, and to    *
+ *   permit persons to whom the Software is furnished to do so, subject to *
+ *   the following conditions:                                             *
+ *                                                                         *
+ *   The above copyright notice and this permission notice shall be        *
+ *   included in all copies or substantial portions of the Software.       *
+ *                                                                         *
+ *   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,       *
+ *   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF    *
+ *   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. *
+ *   IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR     *
+ *   OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, *
+ *   ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR *
+ *   OTHER DEALINGS IN THE SOFTWARE.                                       *
+ ***************************************************************************/
+
+
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif
+
+/*#include <cygwin/in.h>*/
+#include <netdb.h>
+/*#include <win32api/winsock.h>
+#include <ctype.h>
+#include <sys/types.h>*/
+#include <sys/socket.h>
+#include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+/*
+	LEGKISEBB-BEJELENTKEZES %80[^\00-\32]
+	LEGKISEBB-MEGAD %Ld
+	LEGKISEBB-NYERT %80[^\00-\32]
+	LEGKISEBB-SZAM %Ld
+	LEGKISEBB-KIJELENTKEZES %80[^\00-\32]
+*/
+
+static int szalak=1;
+
+void* admin_szal(void* param) {
+	/* szoveges menurendszer */
+	return NULL;
+}
+
+void* kiszolgalo_szal(void* kapocs) {
+	szalak++;
+	FILE* fd = fdopen(*(int*) kapocs, "r+");
+	char* buffer = malloc(81);
+	printf("fdopen()\n");
+
+	while(*buffer!='q'){
+		fgets(buffer, 81, fd);
+/*	    sscanf(sor, "LEGKISEBB-%s %50[^\00-\32]",cucc);*/
+		puts(buffer);
+	}
+		
+	
+	
+	fclose(fd);
+	printf("fclose()\n");
+	szalak--;
+	return NULL;
+}
+
+
+int main(int argc, char *argv[])
+{
+	unsigned short port=12345;
+	int sock, kapcsolat;
+	struct sockaddr_in cim;
+	pthread_t ujszal;
+/*	FILE * fd;*/
+	char sor[81];
+
+	printf("Legkisebb Szam server v.0.01\n"
+	"\nKérem adja meg, "
+	"hogy a program mely TCP porton várja a kapcsolatokat ");
+	do{
+		printf("\n(1024 és 65535 közötti egész, alapesetben 12345):\n");
+		fgets(sor, 81, stdin);
+		sscanf(sor, "%hu", &port);
+	}while(port<1024);
+	printf("\nA használt port: %d\n", port);
+
+	if((sock=socket(AF_INET, SOCK_STREAM, 0))<0) {
+		perror("Nem sikerült socket-et létrehozni!\n");
+		exit(-1);
+	}
+
+	memset((char*) &cim, 0, sizeof(cim));
+	cim.sin_addr.s_addr = htonl(INADDR_ANY);
+	cim.sin_family = AF_INET;
+	cim.sin_port = htons(port);
+
+	if(bind(sock, (struct sockaddr *) &cim, sizeof(cim))<0) {
+		perror("Hiba a bind()-el!\n");
+		exit(1);
+	}
+	printf("bind() kész.\n");
+
+	if(listen(sock,2)<0){
+		perror("Hiba a listen()-el!\n");
+		exit(1);
+	}
+	printf("listen() kész.\n", port);
+
+	do{
+		kapcsolat = accept(sock,NULL,NULL);
+		printf("accept()\n");
+		
+		if(pthread_create(&ujszal, NULL, kiszolgalo_szal, &kapcsolat)){
+			perror("Hiba az uj szal letrehozasakor!\n");
+			exit(1);
+		}
+	}while(szalak);
+	
+	close(sock);
+	printf("close()\n");
+	return EXIT_SUCCESS;
+}
